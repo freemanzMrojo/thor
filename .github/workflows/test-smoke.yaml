@@ -7,45 +7,6 @@ on:
         required: true
 
 jobs:
-  build-docker-image:
-    name: Build Docker image
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
-      - name: Try to download e2e artifact
-        id: download-artifact
-        continue-on-error: true
-        uses: actions/download-artifact@v4
-        with:
-          name: vechain-thor-image-${{ github.sha }}
-          path: /tmp
-
-      - name: Set up QEMU
-        if: steps.download-artifact.outcome == 'failure'
-        uses: docker/setup-qemu-action@v3
-
-      - name: Set up Docker Buildx
-        if: steps.download-artifact.outcome == 'failure'
-        uses: docker/setup-buildx-action@v3
-
-      - name: Build and export
-        if: steps.download-artifact.outcome == 'failure'
-        uses: docker/build-push-action@v6
-        with:
-          context: .
-          tags: vechain/thor:${{ github.sha }}
-          outputs: type=docker,dest=/tmp/vechain-thor.tar
-
-      - name: Upload artifact
-        if: steps.download-artifact.outcome == 'failure'
-        uses: actions/upload-artifact@v4
-        with:
-          name: vechain-thor-image-${{ github.sha }}
-          path: /tmp/vechain-thor.tar
-          retention-days: 7
-
   run-smoke-tests:
     runs-on: ubuntu-latest
     env:
@@ -87,7 +48,6 @@ jobs:
             echo "ref=$REF" >> "$GITHUB_OUTPUT"
           fi
           echo "DRAUPNIR REF: $(<$GITHUB_OUTPUT)"
-
       - name: Checkout
         uses: actions/checkout@v4
         with:
