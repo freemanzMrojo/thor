@@ -64,7 +64,7 @@ func (c *Communicator) Synced() <-chan struct{} {
 }
 
 // Sync start synchronization process.
-func (c *Communicator) Sync(ctx context.Context, handler HandleBlockStream) {
+func (c *Communicator) Sync(ctx context.Context, handler HandleBlockStream) bool {
 	const initSyncInterval = 2 * time.Second
 	const syncInterval = 30 * time.Second
 
@@ -90,7 +90,7 @@ func (c *Communicator) Sync(ctx context.Context, handler HandleBlockStream) {
 		timer = time.NewTimer(delay)
 		select {
 		case <-ctx.Done():
-			return
+			return true
 		case <-timer.C:
 			logger.Debug("synchronization start")
 
@@ -231,7 +231,7 @@ func (c *Communicator) SubscribeBlock(ch chan *NewBlockEvent) event.Subscription
 }
 
 // BroadcastBlock broadcast a block to remote peers.
-func (c *Communicator) BroadcastBlock(blk *block.Block) {
+func (c *Communicator) BroadcastBlock(blk *block.Block) bool {
 	peers := c.peerSet.Slice().Filter(func(p *Peer) bool {
 		return !p.IsBlockKnown(blk.Header().ID())
 	})
@@ -257,6 +257,7 @@ func (c *Communicator) BroadcastBlock(blk *block.Block) {
 			}
 		})
 	}
+	return true
 }
 
 // PeerCount returns count of peers.

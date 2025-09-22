@@ -67,6 +67,14 @@ type PackerEngine interface {
 	SetTargetGasLimit(gl uint64)
 }
 
+type Communicator interface {
+	Sync(ctx context.Context, handler comm.HandleBlockStream) bool
+	SubscribeBlock(ch chan *comm.NewBlockEvent) event.Subscription
+	BroadcastBlock(blk *block.Block) bool
+	PeerCount() int
+	Synced() <-chan struct{}
+}
+
 type Node struct {
 	packer      PackerEngine
 	cons        ConsensusEngine
@@ -76,7 +84,7 @@ type Node struct {
 	logDB       *logdb.LogDB
 	txPool      *txpool.TxPool
 	txStashPath string
-	comm        *comm.Communicator
+	comm        Communicator
 	forkConfig  *thor.ForkConfig
 	options     Options
 
@@ -95,7 +103,7 @@ func New(
 	logDB *logdb.LogDB,
 	txPool *txpool.TxPool,
 	txStashPath string,
-	comm *comm.Communicator,
+	comm Communicator,
 	forkConfig *thor.ForkConfig,
 	options Options,
 	consensusEngine ConsensusEngine,
