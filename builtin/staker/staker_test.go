@@ -11,10 +11,21 @@ import (
 
 	"github.com/stretchr/testify/assert"
 
+	"github.com/vechain/thor/v2/builtin/params"
 	"github.com/vechain/thor/v2/builtin/staker/validation"
-
+	"github.com/vechain/thor/v2/muxdb"
+	"github.com/vechain/thor/v2/state"
 	"github.com/vechain/thor/v2/thor"
+	"github.com/vechain/thor/v2/trie"
 )
+
+func newTestStaker() *testStaker {
+	db := muxdb.NewMem()
+	st := state.New(db, trie.Root{})
+
+	addr := thor.BytesToAddress([]byte("staker"))
+	return &testStaker{addr, st, New(addr, st, params.New(addr, st), nil)}
+}
 
 func TestValidation_SignalExit_InvalidEndorser(t *testing.T) {
 	staker := newTest(t)

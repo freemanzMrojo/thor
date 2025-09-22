@@ -157,10 +157,11 @@ func Test_AddDelegator(t *testing.T) {
 
 	validatorID := validators[0].ID
 
-	delegationID := staker.AddDelegation(validatorID, stake, 255, 10)
+	id := newTestSequence(t, staker).
+		AddDelegation(validatorID, stake, 255, 10)
 
-	staker.AssertDelegation(delegationID).
-		IsStarted(false, 10).
+	assertDelegation(t, staker, id, 10).
+		IsStarted(false).
 		LastIteration(nil)
 
 	weightedStake := stakes.NewWeightedStakeWithMultiplier(stake, 255)
