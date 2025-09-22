@@ -67,7 +67,8 @@ type PackerEngine interface {
 	SetTargetGasLimit(gl uint64)
 }
 
-type Communicator interface {
+// CommunicatorEngine defines the interface for p2p communication
+type CommunicatorEngine interface {
 	Sync(ctx context.Context, handler comm.HandleBlockStream) bool
 	SubscribeBlock(ch chan *comm.NewBlockEvent) event.Subscription
 	BroadcastBlock(blk *block.Block) bool
@@ -84,7 +85,7 @@ type Node struct {
 	logDB       *logdb.LogDB
 	txPool      *txpool.TxPool
 	txStashPath string
-	comm        Communicator
+	comm        CommunicatorEngine
 	forkConfig  *thor.ForkConfig
 	options     Options
 
@@ -103,7 +104,7 @@ func New(
 	logDB *logdb.LogDB,
 	txPool *txpool.TxPool,
 	txStashPath string,
-	comm Communicator,
+	comm CommunicatorEngine,
 	forkConfig *thor.ForkConfig,
 	options Options,
 	consensusEngine ConsensusEngine,
