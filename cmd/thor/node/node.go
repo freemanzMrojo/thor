@@ -99,6 +99,21 @@ type TxPoolEngine interface {
 	Remove(txHash thor.Bytes32, txID thor.Bytes32) bool
 }
 
+type BFTEngine interface {
+	Accepts(parentID thor.Bytes32) (bool, error)
+	Select(header *block.Header) (bool, error)
+	CommitBlock(header *block.Header, isPacking bool) error
+	ShouldVote(parentID thor.Bytes32) (bool, error)
+}
+
+type TxPoolEngine interface {
+	Fill(txs tx.Transactions)
+	Add(newTx *tx.Transaction) error
+	SubscribeTxEvent(ch chan *txpool.TxEvent) event.Subscription
+	Executables() tx.Transactions
+	Remove(txHash thor.Bytes32, txID thor.Bytes32) bool
+}
+
 type Node struct {
 	packer      PackerEngine
 	cons        ConsensusEngine
