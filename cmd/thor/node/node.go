@@ -19,7 +19,6 @@ import (
 	"github.com/pkg/errors"
 	"github.com/syndtr/goleveldb/leveldb"
 
-	"github.com/vechain/thor/v2/bft"
 	"github.com/vechain/thor/v2/block"
 	"github.com/vechain/thor/v2/cache"
 	"github.com/vechain/thor/v2/chain"
@@ -89,14 +88,29 @@ type RepositoryEngine interface {
 	NewTicker() co.Waiter
 }
 
+type BFTEngine interface {
+	Accepts(parentID thor.Bytes32) (bool, error)
+	Select(header *block.Header) (bool, error)
+	CommitBlock(header *block.Header, isPacking bool) error
+	ShouldVote(parentID thor.Bytes32) (bool, error)
+}
+
+type TxPoolEngine interface {
+	Fill(txs tx.Transactions)
+	Add(newTx *tx.Transaction) error
+	SubscribeTxEvent(ch chan *txpool.TxEvent) event.Subscription
+	Executables() tx.Transactions
+	Remove(txHash thor.Bytes32, txID thor.Bytes32) bool
+}
+
 type Node struct {
 	packer      PackerEngine
 	cons        ConsensusEngine
 	master      *Master
 	repo        RepositoryEngine
-	bft         *bft.Engine
+	bft         BFTEngine
 	logDB       *logdb.LogDB
-	txPool      *txpool.TxPool
+	txPool      TxPoolEngine
 	txStashPath string
 	comm        CommunicatorEngine
 	forkConfig  *thor.ForkConfig
@@ -113,9 +127,9 @@ type Node struct {
 func New(
 	master *Master,
 	repo RepositoryEngine,
-	bft *bft.Engine,
+	bft BFTEngine,
 	logDB *logdb.LogDB,
-	txPool *txpool.TxPool,
+	txPool TxPoolEngine,
 	txStashPath string,
 	comm CommunicatorEngine,
 	forkConfig *thor.ForkConfig,
