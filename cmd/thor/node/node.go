@@ -76,11 +76,24 @@ type CommunicatorEngine interface {
 	Synced() <-chan struct{}
 }
 
+type RepositoryEngine interface {
+	GetMaxBlockNum() (uint32, error)
+	ScanConflicts(blockNum uint32) (uint32, error)
+	GetBlockSummary(id thor.Bytes32) (*chain.BlockSummary, error)
+	IsNotFound(error) bool
+	BestBlockSummary() *chain.BlockSummary
+	NewChain(head thor.Bytes32) *chain.Chain
+	AddBlock(blk *block.Block, receipts tx.Receipts, conflicts uint32, isTrunk bool) error
+	GetBlock(id thor.Bytes32) (*block.Block, error)
+	GetBlockReceipts(id thor.Bytes32) (tx.Receipts, error)
+	NewTicker() co.Waiter
+}
+
 type Node struct {
 	packer      PackerEngine
 	cons        ConsensusEngine
 	master      *Master
-	repo        *chain.Repository
+	repo        RepositoryEngine
 	bft         *bft.Engine
 	logDB       *logdb.LogDB
 	txPool      *txpool.TxPool
@@ -99,7 +112,7 @@ type Node struct {
 
 func New(
 	master *Master,
-	repo *chain.Repository,
+	repo RepositoryEngine,
 	bft *bft.Engine,
 	logDB *logdb.LogDB,
 	txPool *txpool.TxPool,
