@@ -288,6 +288,9 @@ func (s *Staker) ContractBalanceCheck(pendingWithdraw uint64) error {
 
 	// Get the staker contract's account balance
 	balanceVET, err := s.globalStatsService.GetStakedVET()
+	if err != nil {
+		return fmt.Errorf("error while retrieving GetStakedVET: %w", err)
+	}
 	total := uint64(0)
 	for _, stake := range []uint64{lockedStake, queuedStake, withdrawableStake, cooldownStake, pendingWithdraw} {
 		partialSum, overflow := math.SafeAdd(total, stake)
