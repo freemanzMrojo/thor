@@ -67,23 +67,42 @@ type testStaker struct {
 	*Staker
 }
 
+func (ts *testStaker) subBalance(amount uint64) error {
+	balanceBytes, err := ts.state.GetStorage(ts.addr, thor.Bytes32{})
+	if err != nil {
+		return err
+	}
+	balance := big.NewInt(0).SetBytes(balanceBytes.Bytes())
+	balance.Sub(balance, ToWei(amount))
+	balanceBytes = thor.BytesToBytes32(balance.Bytes())
+	ts.state.SetStorage(ts.addr, thor.Bytes32{}, balanceBytes)
+	return nil
+}
+
+func (ts *testStaker) addBalance(amount uint64) error {
+	balanceBytes, err := ts.state.GetStorage(ts.addr, thor.Bytes32{})
+	if err != nil {
+		return err
+	}
+	balance := big.NewInt(0).SetBytes(balanceBytes.Bytes())
+	balance.Add(balance, ToWei(amount))
+	balanceBytes = thor.BytesToBytes32(balance.Bytes())
+	ts.state.SetStorage(ts.addr, thor.Bytes32{}, balanceBytes)
+	return nil
+}
+
 func (ts *testStaker) AddValidation(
 	validator thor.Address,
 	endorser thor.Address,
 	period uint32,
 	stake uint64,
 ) error {
-	balance, err := ts.state.GetBalance(ts.addr)
-	if err != nil {
+	if err := ts.addBalance(stake); err != nil {
 		return err
 	}
-	newBalance := big.NewInt(0).Add(balance, ToWei(stake))
-	if ts.state.SetBalance(ts.addr, newBalance) != nil {
-		return err
-	}
-	err = ts.Staker.AddValidation(validator, endorser, period, stake)
+	err := ts.Staker.AddValidation(validator, endorser, period, stake)
 	if err != nil {
-		if ts.state.SetBalance(ts.addr, balance) != nil {
+		if err := ts.subBalance(stake); err != nil {
 			return err
 		}
 	}
@@ -91,17 +110,12 @@ func (ts *testStaker) AddValidation(
 }
 
 func (ts *testStaker) IncreaseStake(validator thor.Address, endorser thor.Address, amount uint64) error {
-	balance, err := ts.state.GetBalance(ts.addr)
-	if err != nil {
+	if err := ts.addBalance(amount); err != nil {
 		return err
 	}
-	newBalance := big.NewInt(0).Add(balance, ToWei(amount))
-	if ts.state.SetBalance(ts.addr, newBalance) != nil {
-		return err
-	}
-	err = ts.Staker.IncreaseStake(validator, endorser, amount)
+	err := ts.Staker.IncreaseStake(validator, endorser, amount)
 	if err != nil {
-		if ts.state.SetBalance(ts.addr, balance) != nil {
+		if err := ts.subBalance(amount); err != nil {
 			return err
 		}
 	}
@@ -113,12 +127,7 @@ func (ts *testStaker) WithdrawStake(validator thor.Address, endorser thor.Addres
 	if err != nil {
 		return 0, err
 	}
-	balance, err := ts.state.GetBalance(ts.addr)
-	if err != nil {
-		return 0, err
-	}
-	newBalance := big.NewInt(0).Sub(balance, ToWei(amount))
-	if ts.state.SetBalance(ts.addr, newBalance) != nil {
+	if err := ts.subBalance(amount); err != nil {
 		return 0, err
 	}
 	return amount, nil
@@ -130,17 +139,12 @@ func (ts *testStaker) AddDelegation(
 	multiplier uint8,
 	currentBlock uint32,
 ) (*big.Int, error) {
-	balance, err := ts.state.GetBalance(ts.addr)
-	if err != nil {
-		return nil, err
-	}
-	newBalance := big.NewInt(0).Add(balance, ToWei(stake))
-	if ts.state.SetBalance(ts.addr, newBalance) != nil {
+	if err := ts.addBalance(stake); err != nil {
 		return nil, err
 	}
 	delegation, err := ts.Staker.AddDelegation(validator, stake, multiplier, currentBlock)
 	if err != nil {
-		if ts.state.SetBalance(ts.addr, balance) != nil {
+		if err := ts.subBalance(stake); err != nil {
 			return nil, err
 		}
 	}
@@ -152,18 +156,10 @@ func (ts *testStaker) WithdrawDelegation(
 	currentBlock uint32,
 ) (uint64, error) {
 	amount, err := ts.Staker.WithdrawDelegation(delegationID, currentBlock)
-	if err != nil {
-		return amount, err
-	}
-	balance, err := ts.state.GetBalance(ts.addr)
-	if err != nil {
+	if err := ts.subBalance(amount); err != nil {
 		return 0, err
 	}
-	newBalance := big.NewInt(0).Sub(balance, ToWei(amount))
-	if ts.state.SetBalance(ts.addr, newBalance) != nil {
-		return 0, err
-	}
-	return amount, nil
+	return amount, err
 }
 
 func newStaker(t *testing.T, amount int, maxValidators int64, initialise bool) (*testStaker, uint64) {

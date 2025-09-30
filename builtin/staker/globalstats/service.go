@@ -7,6 +7,7 @@ package globalstats
 
 import (
 	"errors"
+	"math/big"
 
 	"github.com/ethereum/go-ethereum/common/math"
 
@@ -20,6 +21,7 @@ var (
 	slotQueued       = thor.BytesToBytes32([]byte(("queued-stake")))
 	slotWithdrawable = thor.BytesToBytes32([]byte(("withdrawable-stake")))
 	slotCooldown     = thor.BytesToBytes32([]byte(("cooldown-stake")))
+	slotStakedVET    = thor.Bytes32{} // See `staker.sol`, its the first slot in the contract
 )
 
 // Service manages contract-wide staking totals.
@@ -29,6 +31,7 @@ type Service struct {
 	queued       *solidity.Raw[uint64]
 	withdrawable *solidity.Raw[uint64]
 	cooldown     *solidity.Raw[uint64]
+	stakedVET    *solidity.Raw[*big.Int]
 }
 
 func New(sctx *solidity.Context) *Service {
@@ -37,6 +40,7 @@ func New(sctx *solidity.Context) *Service {
 		queued:       solidity.NewRaw[uint64](sctx, slotQueued),
 		withdrawable: solidity.NewRaw[uint64](sctx, slotWithdrawable),
 		cooldown:     solidity.NewRaw[uint64](sctx, slotCooldown),
+		stakedVET:    solidity.NewRaw[*big.Int](sctx, slotStakedVET),
 	}
 }
 
@@ -249,4 +253,16 @@ func (s *Service) RemoveCooldown(stake uint64) error {
 // GetCooldownStake returns the total VET in cooldown.
 func (s *Service) GetCooldownStake() (uint64, error) {
 	return s.cooldown.Get()
+}
+
+// GetStakedVET returns the total VET staked in the contract.
+func (s *Service) GetStakedVET() (uint64, error) {
+	balanceUint256, err := s.stakedVET.Get()
+	if err != nil {
+		return 0, err
+	}
+	if balanceUint256 == nil {
+		balanceUint256 = big.NewInt(0)
+	}
+	return big.NewInt(0).Div(balanceUint256, big.NewInt(1e18)).Uint64(), nil
 }
