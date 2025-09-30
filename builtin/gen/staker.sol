@@ -186,15 +186,15 @@ contract Staker {
         address endorser,
         uint256 stake,
         uint256 weight,
-        uint256 queuedStake,
+        uint256 queuedVET,
         uint8 status,
         uint32 offlineBlock
     )
     {
-        (endorser, stake, weight, queuedStake, status, offlineBlock, , , , ) = StakerNative(
+        (endorser, stake, weight, queuedVET, status, offlineBlock, , , , ) = StakerNative(
             address(this)
         ).native_getValidation(validator);
-        return (endorser, stake, weight, queuedStake, status, offlineBlock);
+        return (endorser, stake, weight, queuedVET, status, offlineBlock);
     }
 
     /**
