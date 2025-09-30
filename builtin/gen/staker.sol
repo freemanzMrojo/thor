@@ -30,14 +30,14 @@ contract Staker {
     /**
      * @dev totalStake returns all stakes and weight by active validators.
      */
-    function totalStake() public view returns (uint256 totalStake, uint256 totalWeight) {
+    function totalStake() public view returns (uint256 totalVET, uint256 totalWeight) {
         return StakerNative(address(this)).native_totalStake();
     }
 
     /**
      * @dev queuedStake returns all stakes by queued validators.
      */
-    function queuedStake() public view returns (uint256 queuedStake) {
+    function queuedStake() public view returns (uint256 queuedVET) {
         return StakerNative(address(this)).native_queuedStake();
     }
 
