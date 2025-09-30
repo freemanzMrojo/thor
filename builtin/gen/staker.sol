@@ -109,12 +109,12 @@ contract Staker {
         address validator,
         uint8 multiplier // (% of msg.value) 100 for x1, 200 for x2, etc. This enforces a maximum of 2.56x multiplier
     )
-    public
-    payable
-    onlyDelegatorContract
-    checkStake(msg.value)
-    delegatorNotPaused
-    returns (uint256 delegationID)
+        public
+        payable
+        onlyDelegatorContract
+        checkStake(msg.value)
+        delegatorNotPaused
+        returns (uint256 delegationID)
     {
         stakedVET += msg.value;
         delegationID = StakerNative(address(this)).native_addDelegation(
@@ -158,7 +158,7 @@ contract Staker {
         uint256 delegationID
     ) public view returns (address validator, uint256 stake, uint8 multiplier, bool isLocked) {
         (validator, stake, multiplier, isLocked, , ) = StakerNative(address(this))
-        .native_getDelegation(delegationID);
+            .native_getDelegation(delegationID);
         return (validator, stake, multiplier, isLocked);
     }
 
@@ -222,14 +222,14 @@ contract Staker {
     /**
      * @dev firstActive returns the head validatorId of the active validators.
      */
-    function firstActive() public view returns (address firstActive) {
+    function firstActive() public view returns (address first) {
         return StakerNative(address(this)).native_firstActive();
     }
 
     /**
      * @dev firstQueued returns the head validatorId of the queued validators.
      */
-    function firstQueued() public view returns (address firstQueued) {
+    function firstQueued() public view returns (address first) {
         return StakerNative(address(this)).native_firstQueued();
     }
 
@@ -273,7 +273,7 @@ contract Staker {
     /**
      * @dev getValidationsNum returns the number of active and queued validators.
      */
-    function getValidationsNum() public view returns (uint256 activeCount, uint256 queuedCount) {
+    function getValidationsNum() public view returns (uint64 activeCount, uint64 queuedCount) {
         return StakerNative(address(this)).native_getValidationsNum();
     }
 
@@ -364,9 +364,9 @@ interface StakerNative {
     function native_getValidation(
         address validator
     )
-    external
-    view
-    returns (address, uint256, uint256, uint256, uint8, uint32, uint32, uint32, uint32, uint32);
+        external
+        view
+        returns (address, uint256, uint256, uint256, uint8, uint32, uint32, uint32, uint32, uint32);
 
     function native_getWithdrawable(address validator) external view returns (uint256);
 
@@ -387,7 +387,7 @@ interface StakerNative {
         address validator
     ) external view returns (uint256, uint256, uint256, uint256, uint256);
 
-    function native_getValidationsNum() external view returns (uint256, uint256);
+    function native_getValidationsNum() external view returns (uint64, uint64);
 
     function native_issuance() external view returns (uint256);
 
