@@ -185,7 +185,6 @@ func TestCleanupTransactions_WithTransactions(t *testing.T) {
 	}
 
 	time.Sleep(1100 * time.Millisecond)
-
 	assert.Equal(t, len(transactions), n.txPool.Len())
 
 	txsToRemove := transactions[:2]
