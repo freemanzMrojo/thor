@@ -27,7 +27,6 @@ import (
 	"github.com/vechain/thor/v2/log"
 	"github.com/vechain/thor/v2/logdb"
 	"github.com/vechain/thor/v2/packer"
-	"github.com/vechain/thor/v2/runtime"
 	"github.com/vechain/thor/v2/state"
 	"github.com/vechain/thor/v2/thor"
 	"github.com/vechain/thor/v2/tx"
@@ -54,13 +53,11 @@ type Options struct {
 // ConsensusEngine defines the interface for consensus processing
 type ConsensusEngine interface {
 	Process(parentSummary *chain.BlockSummary, blk *block.Block, nowTimestamp uint64, blockConflicts uint32) (*state.Stage, tx.Receipts, error)
-	NewRuntimeForReplay(header *block.Header, skipValidation bool) (*runtime.Runtime, error)
 }
 
 // PackerEngine defines the interface for packing blocks
 type PackerEngine interface {
-	Schedule(parent *chain.BlockSummary, nowTimestamp uint64) (flow *packer.Flow, pos bool, err error)
-	Mock(parent *chain.BlockSummary, targetTime uint64, gasLimit uint64) (*packer.Flow, bool, error)
+	Schedule(parent *chain.BlockSummary, nowTimestamp uint64) (flow *packer.Flow, posActive bool, err error)
 	SetTargetGasLimit(gl uint64)
 }
 
