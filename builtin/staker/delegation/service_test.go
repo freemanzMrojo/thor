@@ -87,9 +87,14 @@ func TestService_Withdraw(t *testing.T) {
 	after, err := svc.GetDelegation(id)
 	assert.NoError(t, err)
 	assert.Equal(t, uint64(0), after.Stake)
+
+	// try to withdraw again
+	withdraw, err = svc.Withdraw(del, id)
+	assert.NoError(t, err)
+	assert.Equal(t, uint64(0), withdraw)
 }
 
-func TestService_GetDelegation_NotFoundZeroValue(t *testing.T) {
+func TestService_GetDelegation_NotFound(t *testing.T) {
 	svc, _, _ := newSvc()
 	id := big.NewInt(999)
 	del, err := svc.GetDelegation(id)
@@ -124,4 +129,39 @@ func TestService_Add_CounterSetOverflow(t *testing.T) {
 	_, err := svc.Add(v, 1, 10, 1)
 	assert.ErrorContains(t, err, "delegation ID counter overflow")
 	assert.ErrorContains(t, err, " maximum delegations reached")
+}
+
+func TestService_SignalExit(t *testing.T) {
+	svc, _, _ := newSvc()
+	v := thor.BytesToAddress([]byte("v"))
+	id, err := svc.Add(v, 1, 1000, 50)
+	assert.NoError(t, err)
+
+	del, err := svc.GetDelegation(id)
+	assert.NoError(t, err)
+	assert.Nil(t, del.LastIteration)
+
+	exitIteration := uint32(42)
+	err = svc.SignalExit(del, id, exitIteration)
+	assert.NoError(t, err)
+
+	updated, err := svc.GetDelegation(id)
+	assert.NoError(t, err)
+	assert.NotNil(t, updated.LastIteration)
+	assert.Equal(t, exitIteration, *updated.LastIteration)
+}
+
+func TestService_Withdraw_PointerReference(t *testing.T) {
+	svc, _, _ := newSvc()
+	v := thor.BytesToAddress([]byte("v"))
+	id, err := svc.Add(v, 1, 100, 10)
+	assert.NoError(t, err)
+	del, err := svc.GetDelegation(id)
+	assert.NoError(t, err)
+
+	other := del
+	_, err = svc.Withdraw(del, id)
+	assert.NoError(t, err)
+
+	assert.Equal(t, uint64(0), other.Stake)
 }

@@ -887,7 +887,7 @@ func Test_AddDelegation_WhileValidatorExiting(t *testing.T) {
 
 // Add a check to avoid delegations to be added to exitting validators
 // Add the Queued Aggregations AND Validations Stake in the housekeep
-func Test_Increase_WhileValidatorExiting(t *testing.T) {
+func Test_Increase_Decrease_WhileValidatorExiting(t *testing.T) {
 	staker, _ := newStaker(t, 3, 3, true)
 
 	first, err := staker.FirstActive()
@@ -905,9 +905,16 @@ func Test_Increase_WhileValidatorExiting(t *testing.T) {
 	err = staker.IncreaseStake(first, val.Endorser, 10_000)
 	assert.Error(t, err)
 
+	err = staker.DecreaseStake(first, val.Endorser, 10_000)
+	assert.Error(t, err)
+
 	// housekeep should clean up the queued delegation
 	_, err = staker.Housekeep(val.Period)
 	assert.NoError(t, err)
+
+	exitedVal, err := staker.GetValidation(first)
+	assert.NoError(t, err)
+	assert.Equal(t, validation.StatusExit, exitedVal.Status)
 
 	// housekeep should clean up the queued delegation
 	_, err = staker.Housekeep(val.Period + val.Period)

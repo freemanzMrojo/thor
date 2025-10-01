@@ -107,25 +107,27 @@ func Test_IsLocked(t *testing.T) {
 		assert.NoError(t, err)
 		assert.False(t, ended, "should not be locked when first is greater than current and last is greater than current")
 	})
-	t.Run("Staker is Queued", func(t *testing.T) {
-		d := &delegation.Delegation{
-			FirstIteration: 1,
-			LastIteration:  nil,
-			Stake:          uint64(1),
-			Multiplier:     255,
-		}
+	t.Run("Staker is Queued or Unknown", func(t *testing.T) {
+		for _, status := range []validation.Status{validation.StatusQueued, validation.StatusUnknown} {
+			d := &delegation.Delegation{
+				FirstIteration: 1,
+				LastIteration:  nil,
+				Stake:          uint64(1),
+				Multiplier:     255,
+			}
 
-		v := &validation.Validation{
-			Status: validation.StatusQueued,
-			Period: 5,
-		}
+			v := &validation.Validation{
+				Status: status,
+				Period: 5,
+			}
 
-		started, err := d.Started(v, 15)
-		assert.NoError(t, err)
-		assert.False(t, started, "should not be started when validation status is queued")
-		ended, err := d.Ended(v, 20)
-		assert.NoError(t, err)
-		assert.False(t, ended, "should not be locked when validation status is queued")
+			started, err := d.Started(v, 15)
+			assert.NoError(t, err)
+			assert.False(t, started, "should not be started when validation status is queued or unknown")
+			ended, err := d.Ended(v, 20)
+			assert.NoError(t, err)
+			assert.False(t, ended, "should not be locked when validation status is queued or unknown")
+		}
 	})
 
 	t.Run("exit block not defined", func(t *testing.T) {
@@ -147,6 +149,185 @@ func Test_IsLocked(t *testing.T) {
 		ended, err := d.Ended(v, 20)
 		assert.NoError(t, err)
 		assert.False(t, ended, "should not be locked when last iteration is nil and first equals current")
+	})
+
+	t.Run("Exit status, CompletedPeriods > FirstIteration", func(t *testing.T) {
+		last := uint32(5)
+		d := &delegation.Delegation{
+			FirstIteration: 3,
+			LastIteration:  &last,
+			Stake:          1,
+			Multiplier:     255,
+		}
+		v := &validation.Validation{
+			Status:           validation.StatusExit,
+			CompletedPeriods: 5,
+			Period:           5,
+		}
+		started, err := d.Started(v, 30)
+		assert.NoError(t, err)
+		assert.True(t, started, "should be started when CompletedPeriods > FirstIteration in exit status")
+	})
+
+	t.Run("Exit status, CompletedPeriods == FirstIteration", func(t *testing.T) {
+		last := uint32(5)
+		d := &delegation.Delegation{
+			FirstIteration: 5,
+			LastIteration:  &last,
+			Stake:          1,
+			Multiplier:     255,
+		}
+		v := &validation.Validation{
+			Status:           validation.StatusExit,
+			CompletedPeriods: 5,
+			Period:           5,
+		}
+		started, err := d.Started(v, 30)
+		assert.NoError(t, err)
+		assert.True(t, started, "should be started when CompletedPeriods == FirstIteration in exit status")
+	})
+
+	t.Run("Exit status, CompletedPeriods < FirstIteration", func(t *testing.T) {
+		last := uint32(5)
+		d := &delegation.Delegation{
+			FirstIteration: 6,
+			LastIteration:  &last,
+			Stake:          1,
+			Multiplier:     255,
+		}
+		v := &validation.Validation{
+			Status:           validation.StatusExit,
+			CompletedPeriods: 5,
+			Period:           5,
+		}
+		started, err := d.Started(v, 30)
+		assert.NoError(t, err)
+		assert.False(t, started, "should not be started when CompletedPeriods < FirstIteration in exit status")
+	})
+
+	t.Run("Active, CompletedPeriods > 0, FirstIteration == CompletedPeriods", func(t *testing.T) {
+		last := uint32(5)
+		d := &delegation.Delegation{
+			FirstIteration: 2,
+			LastIteration:  &last,
+			Stake:          1,
+			Multiplier:     255,
+		}
+		v := &validation.Validation{
+			Status:           validation.StatusActive,
+			CompletedPeriods: 2,
+			Period:           5,
+		}
+		started, err := d.Started(v, 15)
+		assert.NoError(t, err)
+		assert.True(t, started, "should be started when CompletedPeriods == FirstIteration in active status")
+	})
+
+	t.Run("Active, CompletedPeriods > 0, FirstIteration > CompletedPeriods", func(t *testing.T) {
+		last := uint32(5)
+		d := &delegation.Delegation{
+			FirstIteration: 3,
+			LastIteration:  &last,
+			Stake:          1,
+			Multiplier:     255,
+		}
+		v := &validation.Validation{
+			Status:           validation.StatusActive,
+			CompletedPeriods: 2,
+			Period:           5,
+		}
+		started, err := d.Started(v, 15)
+		assert.NoError(t, err)
+		assert.False(t, started, "should not be started when FirstIteration > CompletedPeriods in active status")
+	})
+
+	t.Run("Active, StartBlock > currentBlock (should error)", func(t *testing.T) {
+		last := uint32(5)
+		d := &delegation.Delegation{
+			FirstIteration: 1,
+			LastIteration:  &last,
+			Stake:          1,
+			Multiplier:     255,
+		}
+		v := &validation.Validation{
+			Status:     validation.StatusActive,
+			Period:     5,
+			StartBlock: 20,
+		}
+		_, err := d.Started(v, 10)
+		assert.Error(t, err, "should error when currentBlock < StartBlock")
+	})
+
+	t.Run("Active, Period > 1, currentBlock in first period", func(t *testing.T) {
+		last := uint32(5)
+		d := &delegation.Delegation{
+			FirstIteration: 1,
+			LastIteration:  &last,
+			Stake:          1,
+			Multiplier:     255,
+		}
+		v := &validation.Validation{
+			Status:     validation.StatusActive,
+			Period:     10,
+			StartBlock: 0,
+		}
+		started, err := d.Started(v, 5)
+		assert.NoError(t, err)
+		assert.True(t, started, "should be started in first period")
+	})
+
+	t.Run("Active, Period > 1, currentBlock in second period", func(t *testing.T) {
+		last := uint32(5)
+		d := &delegation.Delegation{
+			FirstIteration: 2,
+			LastIteration:  &last,
+			Stake:          1,
+			Multiplier:     255,
+		}
+		v := &validation.Validation{
+			Status:     validation.StatusActive,
+			Period:     10,
+			StartBlock: 0,
+		}
+		started, err := d.Started(v, 15)
+		assert.NoError(t, err)
+		assert.True(t, started, "should be started in second period")
+	})
+
+	t.Run("Active, FirstIteration == 0", func(t *testing.T) {
+		last := uint32(5)
+		d := &delegation.Delegation{
+			FirstIteration: 0,
+			LastIteration:  &last,
+			Stake:          1,
+			Multiplier:     255,
+		}
+		v := &validation.Validation{
+			Status:     validation.StatusActive,
+			Period:     5,
+			StartBlock: 0,
+		}
+		started, err := d.Started(v, 0)
+		assert.NoError(t, err)
+		assert.True(t, started, "should be started when FirstIteration == 0 and currentBlock == StartBlock")
+	})
+
+	t.Run("Exit, CompletedPeriods == 0, FirstIteration == 0", func(t *testing.T) {
+		last := uint32(5)
+		d := &delegation.Delegation{
+			FirstIteration: 0,
+			LastIteration:  &last,
+			Stake:          1,
+			Multiplier:     255,
+		}
+		v := &validation.Validation{
+			Status:           validation.StatusExit,
+			CompletedPeriods: 0,
+			Period:           5,
+		}
+		started, err := d.Started(v, 0)
+		assert.NoError(t, err)
+		assert.True(t, started, "should be started when CompletedPeriods == 0 and FirstIteration == 0 in exit status")
 	})
 }
 
@@ -202,6 +383,50 @@ func Test_AddDelegator_StakeRange(t *testing.T) {
 	// should not be able to stake more than max stake
 	_, err = staker.AddDelegation(validator.ID, 1, 255, 10)
 	assert.ErrorContains(t, err, "total stake would exceed maximum")
+}
+
+func Test_AddDelegator_EdgeCases(t *testing.T) {
+	staker, validators := newDelegationStaker(t)
+
+	t.Run("should not be able to delegate zero", func(t *testing.T) {
+		_, err := staker.AddDelegation(validators[0].ID, 0, 255, 10)
+		assert.ErrorContains(t, err, "stake must be greater than 0")
+	})
+
+	t.Run("should be able to delegate exactly the maximum", func(t *testing.T) {
+		nextPeriodTVL, err := validators[0].Validation.NextPeriodTVL()
+		assert.NoError(t, err)
+		_, err = staker.AddDelegation(validators[0].ID, MaxStakeVET-nextPeriodTVL, 255, 10)
+		assert.NoError(t, err)
+		_, err = staker.AddDelegation(validators[0].ID, 1, 255, 10)
+		assert.ErrorContains(t, err, "total stake would exceed maximum")
+	})
+
+	t.Run("multiple delegations from same delegator to same validator", func(t *testing.T) {
+		id1, err := staker.AddDelegation(validators[1].ID, MinStakeVET, 255, 10)
+		assert.NoError(t, err)
+		id2, err := staker.AddDelegation(validators[1].ID, MinStakeVET, 255, 10)
+		assert.NoError(t, err)
+		assert.NotEqual(t, id1, id2)
+	})
+
+	t.Run("FirstIteration greater than LastIteration should fail", func(t *testing.T) {
+		first := uint32(10)
+		last := uint32(5)
+		deleg := &delegation.Delegation{
+			FirstIteration: first,
+			LastIteration:  &last,
+			Stake:          MinStakeVET,
+			Multiplier:     255,
+		}
+		val := &validation.Validation{
+			Status: validation.StatusActive,
+			Period: 5,
+		}
+		started, err := deleg.Started(val, 10)
+		assert.NoError(t, err)
+		assert.False(t, started, "should not be started if FirstIteration > LastIteration")
+	})
 }
 
 func Test_AddDelegator_ValidatorNotFound(t *testing.T) {
@@ -724,4 +949,73 @@ func TestStaker_DelegationWithdrawPending(t *testing.T) {
 	isLocked, err := delegation.IsLocked(validation, 20)
 	assert.NoError(t, err)
 	assert.False(t, isLocked)
+}
+
+func TestDelegation_StatusUnknown(t *testing.T) {
+	staker, _ := newStaker(t, 1, 1, true)
+	validatorAddr := datagen.RandAddress()
+	err := staker.AddValidation(validatorAddr, validatorAddr, uint32(360)*24*15, MinStakeVET)
+	assert.NoError(t, err)
+	// Set validator status to StatusUnknown
+	val, err := staker.GetValidation(validatorAddr)
+	assert.NoError(t, err)
+	val.Status = validation.StatusUnknown
+	// Add a delegation
+	delegationID, err := staker.AddDelegation(validatorAddr, MinStakeVET, 100, 10)
+	assert.NoError(t, err)
+	deleg, gotVal, err := staker.GetDelegation(delegationID)
+	assert.NoError(t, err)
+	gotVal.Status = validation.StatusUnknown
+	started, err := deleg.Started(gotVal, 10)
+	assert.NoError(t, err)
+	assert.False(t, started)
+	ended, err := deleg.Ended(gotVal, 10)
+	assert.NoError(t, err)
+	assert.False(t, ended)
+	isLocked, err := deleg.IsLocked(gotVal, 10)
+	assert.NoError(t, err)
+	assert.False(t, isLocked)
+}
+
+func TestDelegation_ErrorPropagation_CurrentIteration(t *testing.T) {
+	staker, _ := newStaker(t, 1, 1, true)
+	validatorAddr := datagen.RandAddress()
+	err := staker.AddValidation(validatorAddr, validatorAddr, uint32(360)*24*15, MinStakeVET)
+	assert.NoError(t, err)
+	// Add a delegation
+	delegationID, err := staker.AddDelegation(validatorAddr, MinStakeVET, 100, 10)
+	assert.NoError(t, err)
+	deleg, val, err := staker.GetDelegation(delegationID)
+	assert.NoError(t, err)
+	val.Status = validation.StatusActive
+	val.Period = 0
+	_, err = deleg.Started(val, 10)
+	assert.Error(t, err)
+	_, err = deleg.Ended(val, 10)
+	assert.Error(t, err)
+	_, err = deleg.IsLocked(val, 10)
+	assert.Error(t, err)
+}
+
+func TestDelegation_WeightedStake(t *testing.T) {
+	tests := []struct {
+		stake      uint64
+		multiplier uint8
+		expWeight  uint64
+	}{
+		{stake: 100, multiplier: 100, expWeight: 100},
+		{stake: 100, multiplier: 200, expWeight: 200},
+		{stake: 50, multiplier: 150, expWeight: 75},
+		{stake: 0, multiplier: 100, expWeight: 0},
+		{stake: 100, multiplier: 0, expWeight: 0},
+	}
+	for _, tt := range tests {
+		d := &delegation.Delegation{
+			Stake:      tt.stake,
+			Multiplier: tt.multiplier,
+		}
+		ws := d.WeightedStake()
+		assert.Equal(t, tt.stake, ws.VET)
+		assert.Equal(t, tt.expWeight, ws.Weight)
+	}
 }

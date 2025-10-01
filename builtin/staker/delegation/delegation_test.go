@@ -62,6 +62,14 @@ func TestDelegation(t *testing.T) {
 	assert.Equal(t, uint64(1000), wStake.VET)
 	assert.Equal(t, uint64(2000), wStake.Weight)
 
+	val.Status = validation.StatusUnknown
+	started, err = del.Started(&val, 10)
+	assert.NoError(t, err)
+	assert.False(t, started)
+	ended, err = del.Ended(&val, 10)
+	assert.NoError(t, err)
+	assert.False(t, ended)
+
 	val.Status = validation.StatusQueued
 	started, err = del.Started(&val, 10)
 	assert.NoError(t, err)
@@ -141,4 +149,57 @@ func TestDelegation_IsLocked(t *testing.T) {
 	isLocked, err = del.IsLocked(&val, 2)
 	assert.NoError(t, err)
 	assert.False(t, isLocked)
+}
+
+func TestDelegation_ErrorPaths_Matrix(t *testing.T) {
+	currentBlock := uint32(10)
+	v := &validation.Validation{
+		Status:     validation.StatusActive,
+		Period:     0,
+		StartBlock: 0,
+	}
+
+	type args struct {
+		delegation Delegation
+	}
+	tests := []struct {
+		name     string
+		testFunc func(*Delegation, *validation.Validation, uint32) (interface{}, error)
+		args     args
+	}{
+		{
+			name: "Started returns error (CurrentIteration error)",
+			testFunc: func(d *Delegation, v *validation.Validation, block uint32) (interface{}, error) {
+				return d.Started(v, block)
+			},
+			args: args{
+				delegation: Delegation{FirstIteration: 1},
+			},
+		},
+		{
+			name: "Ended returns error (Started error)",
+			testFunc: func(d *Delegation, v *validation.Validation, block uint32) (interface{}, error) {
+				return d.Ended(v, block)
+			},
+			args: args{
+				delegation: Delegation{FirstIteration: 1, LastIteration: new(uint32)},
+			},
+		},
+		{
+			name: "IsLocked returns error (Started error)",
+			testFunc: func(d *Delegation, v *validation.Validation, block uint32) (interface{}, error) {
+				return d.IsLocked(v, block)
+			},
+			args: args{
+				delegation: Delegation{FirstIteration: 1, Stake: 1},
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			_, err := tt.testFunc(&tt.args.delegation, v, currentBlock)
+			assert.Error(t, err)
+		})
+	}
 }
