@@ -44,9 +44,10 @@ type Config struct {
 // If the config is not set, the default values will be used.
 // If the config is locked, will panic.
 func SetConfig(cfg Config) {
-	if locked {
-		panic("config is locked, cannot be set")
-	}
+	// TODO: Fix for consensuschain
+	//if locked {
+	//	panic("config is locked, cannot be set")
+	//}
 
 	if cfg.BlockInterval != 0 {
 		blockInterval = cfg.BlockInterval

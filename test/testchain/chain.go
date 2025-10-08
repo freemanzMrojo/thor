@@ -15,6 +15,7 @@ import (
 	"time"
 
 	"github.com/ethereum/go-ethereum/crypto"
+	"github.com/vechain/thor/v2/consensus"
 
 	"github.com/vechain/thor/v2/abi"
 	"github.com/vechain/thor/v2/bft"
@@ -206,6 +207,17 @@ func (c *Chain) MintClauses(account genesis.DevAccount, clauses []*tx.Clause) er
 	tx = tx.WithSignature(signature)
 
 	return c.MintBlock(account, tx)
+}
+
+// ProcessBlock validates the given block via the consensus package and adds the new block to the chain
+func (c *Chain) ProcessBlock(blk *block.Block) error {
+	con := consensus.New(c.Repo(), c.Stater(), c.forkConfig)
+	parentSummary := c.Repo().BestBlockSummary()
+	stage, receipts, err := con.Process(parentSummary, blk, uint64(time.Now().Unix()), 0)
+	if err != nil {
+		return fmt.Errorf("unable to process block: %w", err)
+	}
+	return c.AddBlock(blk, stage, receipts)
 }
 
 // MintBlock creates and finalizes a new block with the given transactions.
