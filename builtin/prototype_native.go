@@ -95,7 +95,6 @@ func init() {
 			}
 
 			if !validateIfPrunerEnabled(env, args) {
-				// Return zero instead of potentially incorrect data
 				return []any{&big.Int{}}
 			}
 
@@ -142,7 +141,6 @@ func init() {
 			}
 
 			if !validateIfPrunerEnabled(env, args) {
-				// Return zero instead of potentially incorrect data
 				return []any{&big.Int{}}
 			}
 
