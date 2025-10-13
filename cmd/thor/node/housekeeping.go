@@ -27,13 +27,13 @@ func (n *Node) houseKeeping(ctx context.Context) {
 			logger.Debug("received context done signal")
 			return
 		case newBlock := <-n.newBlockCh:
-			// logger.Debug("received new block signal")
+			logger.Debug("received new block signal")
 			var stats blockStats
 			if isTrunk, err := n.processBlock(newBlock.Block, &stats); err != nil {
 				if consensus.IsFutureBlock(err) ||
-					((err == errParentMissing || err == errBlockTemporaryUnprocessable) && n.futureBlocksCache.Contains(newBlock.Header().ParentID())) {
+					((err == errParentMissing || err == errBlockTemporaryUnprocessable) && futureBlocks.Contains(newBlock.Header().ParentID())) {
 					logger.Debug("future block added", "id", newBlock.Header().ID())
-					n.futureBlocksCache.Set(newBlock.Header().ID(), newBlock.Block)
+					futureBlocks.Set(newBlock.Header().ID(), newBlock.Block)
 				}
 			} else if isTrunk {
 				n.comm.BroadcastBlock(newBlock.Block)

@@ -125,3 +125,12 @@ func TestNode_GuardBlockProcessing_KnownBlock(t *testing.T) {
 	assert.ErrorContains(t, err, errKnownBlock.Error(), "Future block should return temporary unprocessable error")
 	assert.Equal(t, node.maxBlockNum, uint32(1000), "maxBlockNum should remain unchanged for old block")
 }
+
+func TestNode_Run(t *testing.T) {
+	node, err := testNode(t)
+	assert.NoError(t, err, "Failed to create test node")
+
+	ctx := t.Context()
+	err = node.Run(ctx)
+	assert.NoError(t, err, "Node should run without error")
+}
