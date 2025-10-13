@@ -94,8 +94,10 @@ func (n *Node) packerLoop(ctx context.Context) {
 			}
 			select {
 			case <-ctx.Done():
+				logger.Debug("received context done signal")
 				return
 			case <-time.After(time.Second):
+				logger.Debug("received time_after")
 				best := n.repo.BestBlockSummary().Header
 				/*  re-schedule regarding the following two conditions:
 				1. parent block needs to update and the new best is not proposed by the same one
