@@ -6,14 +6,19 @@
 package node
 
 import (
+	"bytes"
+	"context"
+	"strings"
 	"testing"
 
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/vechain/thor/v2/bft"
+	"github.com/vechain/thor/v2/block"
 	"github.com/vechain/thor/v2/consensus"
 	"github.com/vechain/thor/v2/genesis"
+	"github.com/vechain/thor/v2/log"
 	"github.com/vechain/thor/v2/muxdb"
 	"github.com/vechain/thor/v2/packer"
 	"github.com/vechain/thor/v2/thor"
@@ -71,6 +76,18 @@ func testNode(t *testing.T) (*Node, error) {
 	return node, nil
 }
 
+// captureLogs temporarily replaces the global root logger with one that
+// writes into an in-memory buffer and returns the buffer and a restore func.
+// Use restore() in a defer to ensure the original logger is restored.
+func captureLogs() (*bytes.Buffer, func()) {
+	buf := new(bytes.Buffer)
+	old := log.Root()
+	h := log.JSONHandler(buf)
+	newLogger := log.NewLogger(h)
+	log.SetDefault(newLogger)
+	return buf, func() { log.SetDefault(old) }
+}
+
 func TestNode_GuardBlockProcessing_NormalNewBlock(t *testing.T) {
 	node, err := testNode(t)
 	assert.NoError(t, err, "Failed to create test node")
@@ -118,4 +135,25 @@ func TestNode_Run(t *testing.T) {
 	ctx := t.Context()
 	err = node.Run(ctx)
 	assert.NoError(t, err, "Node should run without error")
+}
+
+// TestNode_CaptureLogs demonstrates capturing logs emitted by `node.go`.
+// `node.handleBlockStream` logs a debug message at start and end; we assert
+// those messages are present in the captured output.
+func TestNode_CaptureLogs(t *testing.T) {
+	buf, restore := captureLogs()
+	defer restore()
+
+	node, err := testNode(t)
+	require.NoError(t, err, "Failed to create test node")
+
+	ch := make(chan *block.Block)
+	close(ch)
+
+	err = node.handleBlockStream(context.Background(), ch)
+	assert.NoError(t, err)
+
+	out := buf.String()
+	assert.Contains(t, out, "start to process block stream")
+	assert.True(t, strings.Contains(out, "process block stream done"), "expected end message in logs")
 }
