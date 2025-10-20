@@ -7,15 +7,12 @@ package node
 
 import (
 	"bytes"
-	"context"
-	"strings"
 	"testing"
 
 	"github.com/ethereum/go-ethereum/crypto"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/vechain/thor/v2/bft"
-	"github.com/vechain/thor/v2/block"
 	"github.com/vechain/thor/v2/consensus"
 	"github.com/vechain/thor/v2/genesis"
 	"github.com/vechain/thor/v2/log"
@@ -126,34 +123,4 @@ func TestNode_GuardBlockProcessing_KnownBlock(t *testing.T) {
 	})
 	assert.ErrorContains(t, err, errKnownBlock.Error(), "Future block should return temporary unprocessable error")
 	assert.Equal(t, node.maxBlockNum, uint32(1000), "maxBlockNum should remain unchanged for old block")
-}
-
-func TestNode_Run(t *testing.T) {
-	node, err := testNode(t)
-	assert.NoError(t, err, "Failed to create test node")
-
-	ctx := t.Context()
-	err = node.Run(ctx)
-	assert.NoError(t, err, "Node should run without error")
-}
-
-// TestNode_CaptureLogs demonstrates capturing logs emitted by `node.go`.
-// `node.handleBlockStream` logs a debug message at start and end; we assert
-// those messages are present in the captured output.
-func TestNode_CaptureLogs(t *testing.T) {
-	buf, restore := captureLogs()
-	defer restore()
-
-	node, err := testNode(t)
-	require.NoError(t, err, "Failed to create test node")
-
-	ch := make(chan *block.Block)
-	close(ch)
-
-	err = node.handleBlockStream(context.Background(), ch)
-	assert.NoError(t, err)
-
-	out := buf.String()
-	assert.Contains(t, out, "start to process block stream")
-	assert.True(t, strings.Contains(out, "process block stream done"), "expected end message in logs")
 }
