@@ -57,10 +57,11 @@ func testNode(t *testing.T) (*Node, error) {
 		masterAddr,
 		thorChain.Repo(),
 		engine,
-		nil,
-		nil,
+		thorChain.Stater(),
+		nil, // *logdb.LogDB (not required for this test)
+		nil, // TxPoolEngine (nil stub for test)
 		"",
-		nil,
+		nil, // CommunicatorEngine (nil stub for test)
 		&thor.NoFork,
 		Options{
 			SkipLogs:         true,
@@ -91,9 +92,9 @@ func TestNode_GuardBlockProcessing_NormalNewBlock(t *testing.T) {
 
 	node.maxBlockNum = uint32(1000)
 	newBlockNum := uint32(1001)
-	err = node.guardBlockProcessing(newBlockNum, func(conflicts uint32) error {
+	err = node.guardBlockProcessing(newBlockNum, func(conflicts uint32) (thor.Bytes32, error) {
 		// mock process function and return no error
-		return nil
+		return thor.Bytes32{}, nil
 	})
 	assert.NoError(t, err, "Normal new block should be processed without error")
 	assert.Equal(t, node.maxBlockNum, newBlockNum, "maxBlockNum should be updated to new block number")
@@ -104,9 +105,9 @@ func TestNode_GuardBlockProcessing_FutureBlock(t *testing.T) {
 	assert.NoError(t, err, "Failed to create test node")
 
 	node.maxBlockNum = uint32(1000)
-	err = node.guardBlockProcessing(1005, func(conflicts uint32) error {
+	err = node.guardBlockProcessing(1005, func(conflicts uint32) (thor.Bytes32, error) {
 		// mock process function and return no error
-		return nil
+		return thor.Bytes32{}, nil
 	})
 	assert.ErrorContains(t, err, errBlockTemporaryUnprocessable.Error(), "Future block should return temporary unprocessable error")
 }
@@ -117,9 +118,9 @@ func TestNode_GuardBlockProcessing_KnownBlock(t *testing.T) {
 
 	node.maxBlockNum = uint32(1000)
 	newBlockNum := uint32(980)
-	err = node.guardBlockProcessing(newBlockNum, func(conflicts uint32) error {
+	err = node.guardBlockProcessing(newBlockNum, func(conflicts uint32) (thor.Bytes32, error) {
 		// mock process function and return errKnownBlock
-		return errKnownBlock
+		return thor.Bytes32{}, errKnownBlock
 	})
 	assert.ErrorContains(t, err, errKnownBlock.Error(), "Future block should return temporary unprocessable error")
 	assert.Equal(t, node.maxBlockNum, uint32(1000), "maxBlockNum should remain unchanged for old block")
