@@ -7,6 +7,45 @@ on:
         required: true
 
 jobs:
+  build-docker-image:
+    name: Build Docker image
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Try to download e2e artifact
+        id: download-artifact
+        continue-on-error: true
+        uses: actions/download-artifact@v4
+        with:
+          name: vechain-thor-image-${{ github.sha }}
+          path: /tmp
+
+      - name: Set up QEMU
+        if: steps.download-artifact.outcome == 'failure'
+        uses: docker/setup-qemu-action@29109295f81e9208d7d86ff1c6c12d2833863392 # v3
+
+      - name: Set up Docker Buildx
+        if: steps.download-artifact.outcome == 'failure'
+        uses: docker/setup-buildx-action@e468171a9de216ec08956ac3ada2f0791b6bd435 # v3
+
+      - name: Build and export
+        if: steps.download-artifact.outcome == 'failure'
+        uses: docker/build-push-action@263435318d21b8e681c14492fe198d362a7d2c83 # v6
+        with:
+          context: .
+          tags: vechain/thor:${{ github.sha }}
+          outputs: type=docker,dest=/tmp/vechain-thor.tar
+
+      - name: Upload artifact
+        if: steps.download-artifact.outcome == 'failure'
+        uses: actions/upload-artifact@v4
+        with:
+          name: vechain-thor-image-${{ github.sha }}
+          path: /tmp/vechain-thor.tar
+          retention-days: 7
+
   run-smoke-tests:
     runs-on: ubuntu-latest
     env:
@@ -30,13 +69,13 @@ jobs:
           REF="$DEFAULT_COMMIT"
           if [ "${{ github.event_name }}" = "pull_request" ]; then
             # For pull_request events, we only look at the PR's base branch
-            if [[ "${{ github.event.pull_request.base.ref }}" == release/* ]]; then
-              REF="${{ github.event.pull_request.base.ref }}"
+            if [[ "${GITHUB_EVENT_PULL_REQUEST_BASE_REF}" == release/* ]]; then
+              REF="${GITHUB_EVENT_PULL_REQUEST_BASE_REF}"
             fi
           else
             # For push events, we check the branch or tag that was pushed
-            if [[ "${{ github.ref_name }}" == release/* ]]; then
-              REF="${{ github.ref_name }}"
+            if [[ "${GITHUB_REF_NAME}" == release/* ]]; then
+              REF="${GITHUB_REF_NAME}"
             fi
           fi
 
@@ -48,6 +87,9 @@ jobs:
             echo "ref=$REF" >> "$GITHUB_OUTPUT"
           fi
           echo "DRAUPNIR REF: $(<$GITHUB_OUTPUT)"
+        env:
+          GITHUB_EVENT_PULL_REQUEST_BASE_REF: ${{ github.event.pull_request.base.ref }}
+
       - name: Checkout
         uses: actions/checkout@v4
         with:
