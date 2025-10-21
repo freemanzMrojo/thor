@@ -21,21 +21,19 @@ func (n *Node) houseKeeping(ctx context.Context) {
 
 	var noPeerTimes int
 
-	futureBlocks := cache.NewRandCache(32)
-
 	for {
 		select {
 		case <-ctx.Done():
 			logger.Debug("received context done signal")
 			return
 		case newBlock := <-n.newBlockCh:
-			logger.Debug("received new block signal")
+			// logger.Debug("received new block signal")
 			var stats blockStats
 			if isTrunk, err := n.processBlock(newBlock.Block, &stats); err != nil {
 				if consensus.IsFutureBlock(err) ||
-					((err == errParentMissing || err == errBlockTemporaryUnprocessable) && futureBlocks.Contains(newBlock.Header().ParentID())) {
+					((err == errParentMissing || err == errBlockTemporaryUnprocessable) && n.futureBlocksCache.Contains(newBlock.Header().ParentID())) {
 					logger.Debug("future block added", "id", newBlock.Header().ID())
-					futureBlocks.Set(newBlock.Header().ID(), newBlock.Block)
+					n.futureBlocksCache.Set(newBlock.Header().ID(), newBlock.Block)
 				}
 			} else if isTrunk {
 				n.comm.BroadcastBlock(newBlock.Block)
@@ -45,7 +43,7 @@ func (n *Node) houseKeeping(ctx context.Context) {
 			// process future blocks
 			logger.Debug("received future block signal")
 			var blocks []*block.Block
-			futureBlocks.ForEach(func(ent *cache.Entry) bool {
+			n.futureBlocksCache.ForEach(func(ent *cache.Entry) bool {
 				blocks = append(blocks, ent.Value.(*block.Block))
 				return true
 			})
@@ -56,7 +54,7 @@ func (n *Node) houseKeeping(ctx context.Context) {
 			for i, block := range blocks {
 				if isTrunk, err := n.processBlock(block, &stats); err == nil || err == errKnownBlock {
 					logger.Debug("future block consumed", "id", block.Header().ID())
-					futureBlocks.Remove(block.Header().ID())
+					n.futureBlocksCache.Remove(block.Header().ID())
 					if isTrunk {
 						n.comm.BroadcastBlock(block)
 					}

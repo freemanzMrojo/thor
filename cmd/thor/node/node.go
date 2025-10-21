@@ -17,6 +17,7 @@ import (
 	"github.com/ethereum/go-ethereum/event"
 	"github.com/pkg/errors"
 	"github.com/vechain/thor/v2/block"
+	"github.com/vechain/thor/v2/cache"
 	"github.com/vechain/thor/v2/chain"
 	"github.com/vechain/thor/v2/cmd/thor/bandwidth"
 	"github.com/vechain/thor/v2/co"
@@ -124,6 +125,7 @@ type Node struct {
 	futureTicker       *time.Ticker
 	connectivityTicker *time.Ticker
 	clockSyncTicker    *time.Ticker
+	futureBlocksCache  *cache.RandCache
 }
 
 func New(
@@ -159,6 +161,8 @@ func (n *Node) Run(ctx context.Context) error {
 	defer logWorker.Close()
 
 	n.logWorker = logWorker
+
+	n.futureBlocksCache = cache.NewRandCache(32)
 
 	maxBlockNum, err := n.repo.GetMaxBlockNum()
 	if err != nil {
