@@ -7,6 +7,10 @@ on:
       - 'release/*'
       - 'releases/*'
 
+concurrency:
+    group: 'master-commit-ci'
+    cancel-in-progress: false
+
 jobs:
   run-unit-tests:
     name: Run Unit Tests
@@ -29,6 +33,9 @@ jobs:
   run-e2e-tests:
     name: E2E Tests
     uses: ./.github/workflows/test-e2e.yaml
+    permissions:
+      contents: read
+    secrets: inherit
 
   run-smoke-tests:
     name: Smoke Tests
@@ -44,30 +51,63 @@ jobs:
     with:
       thor_version: ${{ github.sha }}
 
+  generate-tags:
+    name: Generate Docker Tags
+    runs-on: ubuntu-latest
+    outputs:
+      tag_date: ${{ steps.tag_date.outputs.tag_date }}
+      short_sha: ${{ steps.short_sha.outputs.short_sha }}
+      clean_ref_name: ${{ steps.clean_ref_name.outputs.clean_ref_name }}
+    steps:
+      - name: Generate Tag Date
+        id: tag_date
+        run: echo "tag_date=$(date +'%Y%m%d')" >> "$GITHUB_OUTPUT"
+      - name: Generate Short SHA
+        id: short_sha
+        run: echo "short_sha=$(echo $GITHUB_SHA | cut -c1-7)" >> "$GITHUB_OUTPUT"
+      - name: Clean Ref Name
+        id: clean_ref_name
+        # replace '/' with '-' in the case of release branches
+        run: echo "clean_ref_name=$(echo $GITHUB_REF_NAME | sed 's/\//-/g')" >> "$GITHUB_OUTPUT"
+
   publish-docker-image:
     name: Publish Docker Image
-    uses: ./.github/workflows/goreleaser.yaml
+    uses: ./.github/workflows/publish-docker-images.yaml
     secrets: inherit
     needs:
       - run-unit-tests
       - run-e2e-tests
+      - generate-tags
       - lint
       - license-check
     permissions:
       contents: read
       packages: write
-      attestations: read
+    with:
+      images: |
+        ghcr.io/${{ github.repository }}
+      tags: |
+        type=raw,value=${{ needs.generate-tags.outputs.clean_ref_name }}-${{ needs.generate-tags.outputs.tag_date }}-${{ needs.generate-tags.outputs.short_sha }}
+        type=raw,value=${{ needs.generate-tags.outputs.clean_ref_name }}-latest
+      trigger_internal_ci: true
 
   notify-slack:
     name: Notify Slack
     needs:
       - publish-docker-image
+      - generate-tags
       - license-check
       - lint
       - module-check
       - run-unit-tests
       - run-e2e-tests
-    if: always() && (needs.publish-docker-image.result != 'success' || needs.run-unit-tests.result != 'success' || needs.lint.result != 'success' || needs.run-e2e-tests.result != 'success' || needs.license-check.result != 'success' || needs.module-check.result != 'success')
+    if: github.ref_name == 'master' && always() && (
+      needs.publish-docker-image.result != 'success' || 
+      needs.run-unit-tests.result != 'success' || 
+      needs.lint.result != 'success' || 
+      needs.run-e2e-tests.result != 'success' || 
+      needs.license-check.result != 'success' || 
+      needs.module-check.result != 'success')
     runs-on: ubuntu-latest
     steps:
       - name: Checkout code
