@@ -1457,13 +1457,13 @@ func TestStaker_MultipleUpdates_CorrectWithdraw(t *testing.T) {
 	// QUEUED
 	staker.AddValidation(acc, acc, period, initialStake)
 
-	validator := staker.GetValidation(acc)
+	validator := staker.GetValidator(acc)
 	assert.Equal(t, validation.StatusQueued, validator.Status)
 
 	// 1st STAKING PERIOD
 	staker.Housekeep(period)
 
-	validator = staker.GetValidation(acc)
+	validator = staker.GetValidator(acc)
 	assert.Equal(t, validation.StatusActive, validator.Status)
 	assert.Equal(t, initialStake, validator.LockedVET)
 
@@ -1473,7 +1473,7 @@ func TestStaker_MultipleUpdates_CorrectWithdraw(t *testing.T) {
 	// 1st decrease
 	staker.DecreaseStake(acc, acc, fiveHundred)
 
-	validator = staker.GetValidation(acc)
+	validator = staker.GetValidator(acc)
 	// LockedVET stays the same, increases go to QueuedVET
 	assert.Equal(t, initialStake, validator.LockedVET)
 	assert.Equal(t, thousand, validator.QueuedVET)
@@ -1483,7 +1483,7 @@ func TestStaker_MultipleUpdates_CorrectWithdraw(t *testing.T) {
 	staker.WithdrawStake(acc, acc, period+1, 1000)
 	withdrawnTotal += 1000
 
-	validator = staker.GetValidation(acc)
+	validator = staker.GetValidator(acc)
 	assert.Equal(t, initialStake, validator.LockedVET)
 
 	// 2nd decrease
@@ -1493,7 +1493,7 @@ func TestStaker_MultipleUpdates_CorrectWithdraw(t *testing.T) {
 
 	// 2nd STAKING PERIOD - this will process the increases and decreases
 	staker.Housekeep(period * 2)
-	validator = staker.GetValidation(acc)
+	validator = staker.GetValidator(acc)
 	assert.Equal(t, validation.StatusActive, validator.Status)
 
 	// Check what's withdrawable after housekeep
@@ -1505,7 +1505,7 @@ func TestStaker_MultipleUpdates_CorrectWithdraw(t *testing.T) {
 	// EXITED
 	staker.Housekeep(period * 3)
 
-	validator = staker.GetValidation(acc)
+	validator = staker.GetValidator(acc)
 	assert.Equal(t, validation.StatusExit, validator.Status)
 
 	// Withdraw the final amount
@@ -1514,7 +1514,6 @@ func TestStaker_MultipleUpdates_CorrectWithdraw(t *testing.T) {
 	withdrawnTotal += expectedWithdraw
 
 	// Total deposits = initial + increases, total withdrawals should match
-	period := thor.MediumStakingPeriod()
 	depositTotal := initialStake + increases
 	assert.Equal(t, depositTotal, withdrawnTotal)
 }
@@ -1668,7 +1667,7 @@ func Test_Validator_IncreaseDecrease_Combinations(t *testing.T) {
 	staker.ActivateNext(0)
 
 	// Verify validator is active with expected initial state
-	val := staker.GetValidation(acc)
+	val := staker.GetValidator(acc)
 	assert.Equal(t, validation.StatusActive, val.Status)
 	assert.Equal(t, MinStakeVET, val.LockedVET)
 	assert.Equal(t, uint64(0), val.QueuedVET)
@@ -1679,7 +1678,7 @@ func Test_Validator_IncreaseDecrease_Combinations(t *testing.T) {
 	staker.IncreaseStake(acc, acc, MinStakeVET)
 
 	// Check validator state after operations
-	val = staker.GetValidation(acc)
+	val = staker.GetValidator(acc)
 	assert.Equal(t, MinStakeVET, val.LockedVET)
 	assert.Equal(t, MinStakeVET, val.QueuedVET)
 	assert.Equal(t, uint64(0), val.PendingUnlockVET)
@@ -1693,7 +1692,7 @@ func Test_Validator_IncreaseDecrease_Combinations(t *testing.T) {
 	staker.Housekeep(thor.LowStakingPeriod())
 
 	// After housekeep, check final state
-	validator := staker.GetValidation(acc)
+	validator := staker.GetValidator(acc)
 	assert.True(t, validator.LockedVET >= MinStakeVET, "locked VET should be at least minimum stake")
 }
 
