@@ -7,6 +7,7 @@ package node
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"sync"
 	"time"
@@ -15,7 +16,7 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/mclock"
 	"github.com/ethereum/go-ethereum/event"
-	"github.com/pkg/errors"
+
 	"github.com/vechain/thor/v2/block"
 	"github.com/vechain/thor/v2/cache"
 	"github.com/vechain/thor/v2/chain"

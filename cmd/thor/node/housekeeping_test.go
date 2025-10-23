@@ -12,7 +12,7 @@ import (
 
 	"github.com/ethereum/go-ethereum/event"
 	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
+
 	"github.com/vechain/thor/v2/block"
 	"github.com/vechain/thor/v2/cache"
 	"github.com/vechain/thor/v2/chain"
@@ -96,7 +96,12 @@ func newMockConsensus() *mockConsensus {
 	}
 }
 
-func (m *mockConsensus) Process(parentSummary *chain.BlockSummary, blk *block.Block, nowTimestamp uint64, blockConflicts uint32) (*state.Stage, tx.Receipts, error) {
+func (m *mockConsensus) Process(
+	parentSummary *chain.BlockSummary,
+	blk *block.Block,
+	nowTimestamp uint64,
+	blockConflicts uint32,
+) (*state.Stage, tx.Receipts, error) {
 	return m.stager, nil, nil
 }
 
@@ -104,7 +109,6 @@ func (m *mockConsensus) NewRuntimeForReplay(header *block.Header, skipValidation
 	return nil, nil
 }
 
-// Test node that embeds the original but allows method overriding
 type mockableNode struct {
 	*Node
 }
@@ -118,7 +122,7 @@ func setupTestNodeForHousekeeping(t *testing.T) (*mockableNode, *mockCommunicato
 
 	// Create test chain
 	chain, err := createChain(db, accounts)
-	require.NoError(t, err)
+	assert.Nil(t, err)
 
 	// Create mock
 	mockComm := &mockCommunicator{peerCount: 1}
@@ -152,7 +156,6 @@ func setupTestNodeForHousekeeping(t *testing.T) (*mockableNode, *mockCommunicato
 }
 
 func TestNode_HouseKeeping_Newblock(t *testing.T) {
-
 	tests := []struct {
 		name       string
 		setupBlock func(node *mockableNode) *block.Block
@@ -219,8 +222,12 @@ func TestNode_HouseKeeping_Newblock(t *testing.T) {
 			assertFunc: func(t *testing.T, values map[string]any) {
 				node := values["node"].(*mockableNode)
 				assert.Equal(t, 2, node.futureBlocksCache.Len(), "Future blocks cache should contain 2 blocks")
-				assert.True(t, node.futureBlocksCache.Contains(thor.MustParseBytes32("0x0000000200000000000000000000000000000000000000000000000000000000")), "Future blocks cache should contain the parent block")
-				assert.True(t, node.futureBlocksCache.Contains(thor.MustParseBytes32("0x0000000300000000000000000000000000000000000000000000000000000000")), "Future blocks cache should contain the parent block")
+				assert.True(t,
+					node.futureBlocksCache.Contains(thor.MustParseBytes32("0x0000000200000000000000000000000000000000000000000000000000000000")),
+					"Future blocks cache should contain the parent block")
+				assert.True(t,
+					node.futureBlocksCache.Contains(thor.MustParseBytes32("0x0000000300000000000000000000000000000000000000000000000000000000")),
+					"Future blocks cache should contain the parent block")
 			},
 		},
 		{
@@ -251,7 +258,6 @@ func TestNode_HouseKeeping_Newblock(t *testing.T) {
 				newblock := block.Compose(header2, nil)
 
 				return newblock
-
 			},
 			assertFunc: func(t *testing.T, values map[string]any) {
 				node := values["node"].(*mockableNode)
@@ -327,7 +333,6 @@ func TestNode_HouseKeeping_Newblock(t *testing.T) {
 }
 
 func TestNode_HouseKeeping_FutureTicker(t *testing.T) {
-
 	buf, restore := captureLogs()
 	defer restore()
 
