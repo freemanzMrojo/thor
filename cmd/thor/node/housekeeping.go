@@ -31,9 +31,9 @@ func (n *Node) houseKeeping(ctx context.Context) {
 			var stats blockStats
 			if isTrunk, err := n.processBlock(newBlock.Block, &stats); err != nil {
 				if consensus.IsFutureBlock(err) ||
-					((err == errParentMissing || err == errBlockTemporaryUnprocessable) && futureBlocks.Contains(newBlock.Header().ParentID())) {
+					((err == errParentMissing || err == errBlockTemporaryUnprocessable) && n.futureBlocksCache.Contains(newBlock.Header().ParentID())) {
 					logger.Debug("future block added", "id", newBlock.Header().ID())
-					futureBlocks.Set(newBlock.Header().ID(), newBlock.Block)
+					n.futureBlocksCache.Set(newBlock.Header().ID(), newBlock.Block)
 				}
 			} else if isTrunk {
 				n.comm.BroadcastBlock(newBlock.Block)
