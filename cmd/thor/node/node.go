@@ -104,6 +104,7 @@ type TxPoolEngine interface {
 	Get(id thor.Bytes32) *tx.Transaction
 	StrictlyAdd(newTx *tx.Transaction) error
 	Dump() tx.Transactions
+	Len() int
 }
 
 type Node struct {

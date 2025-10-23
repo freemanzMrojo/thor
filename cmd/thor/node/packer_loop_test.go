@@ -185,15 +185,14 @@ func TestCleanupTransactions_WithTransactions(t *testing.T) {
 	}
 
 	time.Sleep(1100 * time.Millisecond)
-	// TODO fix this flaky test
-	// assert.Equal(t, len(transactions), n.txPool.Len())
+
+	assert.Equal(t, len(transactions), n.txPool.Len())
 
 	txsToRemove := transactions[:2]
 
 	cleanupTransactions(txsToRemove, n.txPool)
 
-	// TODO fix this flaky test
-	// assert.Equal(t, 1, n.txPool.Len())
+	assert.Equal(t, 1, n.txPool.Len())
 
 	for _, tx := range txsToRemove {
 		assert.Nil(t, n.txPool.Get(tx.ID()))
