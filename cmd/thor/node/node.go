@@ -80,6 +80,10 @@ type RepositoryEngine interface {
 	GetBlockReceipts(id thor.Bytes32) (tx.Receipts, error)
 	NewTicker() co.Waiter
 	GetConflicts(blockNum uint32) ([]thor.Bytes32, error)
+	ChainTag() byte
+	GenesisBlock() *block.Block
+	ScanHeads(from uint32) ([]thor.Bytes32, error)
+	GetBlockTransactions(id thor.Bytes32) (tx.Transactions, error)
 }
 
 type BFTEngine interface {
@@ -96,6 +100,10 @@ type TxPoolEngine interface {
 	Executables() tx.Transactions
 	Remove(txHash thor.Bytes32, txID thor.Bytes32) bool
 	Close()
+	AddLocal(newTx *tx.Transaction) error
+	Get(id thor.Bytes32) *tx.Transaction
+	StrictlyAdd(newTx *tx.Transaction) error
+	Dump() tx.Transactions
 }
 
 type Node struct {

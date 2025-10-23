@@ -7,7 +7,6 @@ package node
 
 import (
 	"context"
-	"sync"
 	"testing"
 	"time"
 
@@ -108,23 +107,6 @@ func (m *mockConsensus) NewRuntimeForReplay(header *block.Header, skipValidation
 // Test node that embeds the original but allows method overriding
 type mockableNode struct {
 	*Node
-	processBlockFunc func(blk *block.Block, stats *blockStats) (bool, error)
-}
-
-func createTestBlock(parentBlock *chain.BlockSummary) *block.Block {
-	builder := new(block.Builder)
-	parentID := thor.Bytes32{}
-	if parentBlock != nil {
-		parentID = parentBlock.Header.ID()
-	}
-
-	header := builder.
-		ParentID(parentID).
-		Timestamp(uint64(time.Now().Unix())).
-		GasLimit(10000000).
-		Build().Header()
-
-	return block.Compose(header, nil)
 }
 
 func setupTestNodeForHousekeeping(t *testing.T) (*mockableNode, *mockCommunicator) {
@@ -170,103 +152,80 @@ func setupTestNodeForHousekeeping(t *testing.T) (*mockableNode, *mockCommunicato
 }
 
 func TestNode_HouseKeeping_Newblock(t *testing.T) {
-	buf, restore := captureLogs()
-	defer restore()
-
-	node, mockComm := setupTestNodeForHousekeeping(t)
-	defer node.futureTicker.Stop()
-	defer node.connectivityTicker.Stop()
-	defer node.clockSyncTicker.Stop()
 
 	tests := []struct {
-		name             string
-		setupBlock       func() *block.Block
-		setupProcessFunc func() func(blk *block.Block, stats *blockStats) (bool, error)
-		assertFunc       func(t *testing.T, values map[string]any)
+		name       string
+		setupBlock func(node *mockableNode) *block.Block
+		assertFunc func(t *testing.T, values map[string]any)
 	}{
-		// {
-		// 	name: "successful trunk block processing",
-		// 	setupBlock: func() *block.Block {
-		// 		// Create a block that should be processed successfully
-		// 		parentBlock := node.repo.BestBlockSummary()
+		{
+			name: "successful trunk block processing",
+			setupBlock: func(node *mockableNode) *block.Block {
+				// Create a block that should be processed successfully
+				parentBlock := node.repo.BestBlockSummary()
 
-		// 		builder := new(block.Builder)
-		// 		parentID := thor.Bytes32{}
-		// 		if parentBlock != nil {
-		// 			parentID = parentBlock.Header.ID()
-		// 		}
+				builder := new(block.Builder)
+				parentID := thor.Bytes32{}
+				if parentBlock != nil {
+					parentID = parentBlock.Header.ID()
+				}
 
-		// 		header := builder.
-		// 			ParentID(parentID).
-		// 			Timestamp(uint64(time.Now().Unix())).
-		// 			GasLimit(10000000).
-		// 			TotalScore(11).
-		// 			Build().Header()
+				header := builder.
+					ParentID(parentID).
+					Timestamp(uint64(time.Now().Unix())).
+					GasLimit(10000000).
+					TotalScore(11).
+					Build().Header()
 
-		// 		trunkBL := block.Compose(header, nil)
-		// 		return trunkBL
-		// 	},
-		// 	setupProcessFunc: func() func(blk *block.Block, stats *blockStats) (bool, error) {
-		// 		return func(blk *block.Block, stats *blockStats) (bool, error) {
-		// 			stats.UpdateProcessed(1, 0, 0, 0, 0, 0)
-		// 			return true, nil // isTrunk=true, no error
-		// 		}
-		// 	},
+				trunkBL := block.Compose(header, nil)
+				return trunkBL
+			},
+			assertFunc: func(t *testing.T, values map[string]any) {
+				node := values["node"].(*mockableNode)
+				mockComm := node.comm.(*mockCommunicator)
+				assert.True(t, mockComm.broadcastCalled, "Block should have been broadcast")
+				assert.NotEmpty(t, mockComm.broadcastBlock, "Broadcasted block should not be nil")
+			},
+		},
+		{
+			name: "parent missing error handling",
+			setupBlock: func(node *mockableNode) *block.Block {
+				return createTestBlock(thor.MustParseBytes32("0x0000000100000000000000000000000000000000000000000000000000000000"))
+			},
+			assertFunc: func(t *testing.T, values map[string]any) {
+				node := values["node"].(*mockableNode)
+				assert.Equal(t, 0, node.futureBlocksCache.Len(), "Future blocks cache should be empty")
+			},
+		},
+		{
+			name: "parent in future blocks cache and parent missing error handling",
+			setupBlock: func(node *mockableNode) *block.Block {
+				// Create a block whose parent is in the future blocks cache
+				// bestBlock := node.repo.BestBlockSummary()
+				cacheBlock := createTestBlock(thor.MustParseBytes32("0x0000000100000000000000000000000000000000000000000000000000000000"))
+				node.futureBlocksCache.Set(cacheBlock.Header().ID(), cacheBlock)
 
-		// 	assertFunc: func(t *testing.T, values map[string]any) {
-		// 		node := values["node"].(*mockableNode)
-		// 		mockComm := node.comm.(*mockCommunicator)
-		// 		assert.True(t, mockComm.broadcastCalled, "Block should have been broadcast")
-		// 		assert.NotEmpty(t, mockComm.broadcastBlock, "Broadcasted block should not be nil")
-		// 	},
-		// },
-		// {
-		// 	name: "parent missing error handling",
-		// 	setupBlock: func() *block.Block {
-		// 		return createTestBlock(nil)
-		// 	},
-		// 	setupProcessFunc: func() func(blk *block.Block, stats *blockStats) (bool, error) {
-		// 		return func(blk *block.Block, stats *blockStats) (bool, error) {
-		// 			return false, errParentMissing
-		// 		}
-		// 	},
-		// 	assertFunc: func(t *testing.T, values map[string]any) {
-		// 		node := values["node"].(*mockableNode)
-		// 		assert.Equal(t, 0, node.futureBlocksCache.Len(), "Future blocks cache should be empty")
-		// 	},
-		// },
-		// {
-		// 	name: "parent in future blocks cache and parent missing error handling",
-		// 	setupBlock: func() *block.Block {
-		// 		// Create a block whose parent is in the future blocks cache
-		// 		// bestBlock := node.repo.BestBlockSummary()
-		// 		cacheBlock := createTestBlock(nil)
-		// 		node.futureBlocksCache.Set(cacheBlock.Header().ID(), cacheBlock)
+				builder := new(block.Builder)
+				header := builder.
+					ParentID(cacheBlock.Header().ID()).
+					Timestamp(uint64(time.Now().Unix())).
+					GasLimit(10000000).
+					TotalScore(11).
+					Build().Header()
 
-		// 		builder := new(block.Builder)
-		// 		header := builder.
-		// 			ParentID(cacheBlock.Header().ID()).
-		// 			Timestamp(uint64(time.Now().Unix())).
-		// 			GasLimit(10000000).
-		// 			TotalScore(11).
-		// 			Build().Header()
-
-		// 		newBlock := block.Compose(header, nil)
-		// 		return newBlock
-		// 	},
-		// 	setupProcessFunc: func() func(blk *block.Block, stats *blockStats) (bool, error) {
-		// 		return func(blk *block.Block, stats *blockStats) (bool, error) {
-		// 			return false, errParentMissing
-		// 		}
-		// 	},
-		// 	assertFunc: func(t *testing.T, values map[string]any) {
-		// 		node := values["node"].(*mockableNode)
-		// 		assert.Equal(t, 2, node.futureBlocksCache.Len(), "Future blocks cache should contain 2 blocks")
-		// 	},
-		// },
+				newBlock := block.Compose(header, nil)
+				return newBlock
+			},
+			assertFunc: func(t *testing.T, values map[string]any) {
+				node := values["node"].(*mockableNode)
+				assert.Equal(t, 2, node.futureBlocksCache.Len(), "Future blocks cache should contain 2 blocks")
+				assert.True(t, node.futureBlocksCache.Contains(thor.MustParseBytes32("0x0000000200000000000000000000000000000000000000000000000000000000")), "Future blocks cache should contain the parent block")
+				assert.True(t, node.futureBlocksCache.Contains(thor.MustParseBytes32("0x0000000300000000000000000000000000000000000000000000000000000000")), "Future blocks cache should contain the parent block")
+			},
+		},
 		{
 			name: "temporaryUnprocessable block handling",
-			setupBlock: func() *block.Block {
+			setupBlock: func(node *mockableNode) *block.Block {
 				// Create a block whose parent is in the future blocks cache
 				newParentID, _ := thor.ParseBytes32("0x0000000a00000000000000000000000000000000000000000000000000000000") // block number is 10
 
@@ -294,35 +253,32 @@ func TestNode_HouseKeeping_Newblock(t *testing.T) {
 				return newblock
 
 			},
-			setupProcessFunc: func() func(blk *block.Block, stats *blockStats) (bool, error) {
-				return func(blk *block.Block, stats *blockStats) (bool, error) {
-					return false, errBlockTemporaryUnprocessable
-				}
-			},
-
 			assertFunc: func(t *testing.T, values map[string]any) {
 				node := values["node"].(*mockableNode)
-				assert.Equal(t, 2, node.futureBlocksCache.Len(), "Future blocks cache should contain 1 block")
+				assert.Equal(t, 2, node.futureBlocksCache.Len(), "Future blocks cache should contain 2 blocks")
 			},
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			buf, restore := captureLogs()
+			defer restore()
+
+			node, mockComm := setupTestNodeForHousekeeping(t)
+			defer node.futureTicker.Stop()
+			defer node.connectivityTicker.Stop()
+			defer node.clockSyncTicker.Stop()
+
 			// Reset mock state
 			mockComm.broadcastCalled = false
 			mockComm.broadcastBlock = nil
-
-			// Setup process function
-			if tt.setupProcessFunc != nil {
-				node.processBlockFunc = tt.setupProcessFunc()
-			}
 
 			// Clear future blocks cache
 			node.futureBlocksCache = cache.NewRandCache(32)
 
 			// Create test block
-			testBlock := tt.setupBlock()
+			testBlock := tt.setupBlock(node)
 			newBlockEvent := &comm.NewBlockEvent{Block: testBlock}
 
 			// Start housekeeping in a goroutine
@@ -366,57 +322,74 @@ func TestNode_HouseKeeping_Newblock(t *testing.T) {
 					"logs": buf.String(),
 				})
 			}
-			// assert.Equal(t, tt.expectBroadcast, mockComm.broadcastCalled, "Broadcast expectation mismatch")
-
-			// if tt.expectBroadcast {
-			// 	assert.NotNil(t, mockComm.broadcastBlock, "Expected block to be broadcast")
-			// }
 		})
 	}
 }
 
 func TestNode_HouseKeeping_FutureTicker(t *testing.T) {
-	node, mockComm := setupTestNodeForHousekeeping(t)
+
+	buf, restore := captureLogs()
+	defer restore()
+
+	node, _ := setupTestNodeForHousekeeping(t)
 	defer node.futureTicker.Stop()
 	defer node.connectivityTicker.Stop()
 	defer node.clockSyncTicker.Stop()
 
-	// Create a very short ticker for testing
-	node.futureTicker = time.NewTicker(10 * time.Millisecond)
-
-	// Track processed blocks
-	var processedBlocks []*block.Block
-	var mu sync.Mutex
-
-	// Mock processBlock to capture processed blocks
-	node.processBlockFunc = func(blk *block.Block, stats *blockStats) (bool, error) {
-		mu.Lock()
-		processedBlocks = append(processedBlocks, blk)
-		mu.Unlock()
-		stats.UpdateProcessed(1, 0, 0, 0, 0, 0)
-		return true, nil // Process successfully as trunk
-	}
-
-	// Start housekeeping
-	ctx, cancel := context.WithTimeout(context.Background(), 100*time.Millisecond)
+	// Start housekeeping in a goroutine
+	ctx, cancel := context.WithTimeout(context.Background(), 500*time.Millisecond)
 	defer cancel()
 
-	done := make(chan bool)
+	var processedBlock bool
+	done := make(chan bool, 1)
+
+	normalBlock := createTestBlock(node.repo.BestBlockSummary().Header.ID())
+	newBlockEvent := &comm.NewBlockEvent{Block: normalBlock}
+
+	futureBlock := createTestBlock(normalBlock.Header().ID())
+	node.futureBlocksCache.Set(futureBlock.Header().ID(), futureBlock)
+
+	assert.True(t, node.futureBlocksCache.Contains(futureBlock.Header().ID()), "Future blocks cache should contain the future block before processing")
+
 	go func() {
 		defer func() { done <- true }()
-		node.houseKeeping(ctx)
+
+		// Monitor for processing
+		go func() {
+			select {
+			case node.newBlockCh <- newBlockEvent:
+				processedBlock = true
+			case <-ctx.Done():
+			}
+		}()
+
+		go func() {
+			node.futureTicker.Stop()
+			node.futureTicker = time.NewTicker(10 * time.Millisecond)
+		}()
+
+		// Run housekeeping briefly
+		select {
+		case <-ctx.Done():
+		default:
+			node.houseKeeping(ctx)
+		}
 	}()
 
-	// Wait for completion
+	// Wait for processing
 	<-done
 
-	// The test should complete without hanging
-	assert.True(t, true, "Future ticker handling completed successfully")
-	// Note: We don't verify block processing here since future blocks cache is internal
-	_ = mockComm // Use mockComm to avoid unused variable
+	assert.True(t, processedBlock, "Block should have been sent to processing channel")
+	assert.False(t, node.futureBlocksCache.Contains(futureBlock.Header().ID()), "Future blocks cache should not contain the future block after processing")
+	assert.Contains(t, buf.String(), "future block consumed", "Logs should indicate future block was consumed")
+	assert.Contains(t, buf.String(), futureBlock.Header().ID().String(), "Logs should contain the future block ID")
+	assert.Contains(t, buf.String(), "imported blocks", "Logs should indicate blocks were imported")
 }
 
 func TestNode_HouseKeeping_ConnectivityTicker(t *testing.T) {
+	buf, restore := captureLogs()
+	defer restore()
+
 	node, mockComm := setupTestNodeForHousekeeping(t)
 	defer node.futureTicker.Stop()
 	defer node.connectivityTicker.Stop()
@@ -459,12 +432,16 @@ func TestNode_HouseKeeping_ConnectivityTicker(t *testing.T) {
 
 			// The test verifies that connectivity ticker doesn't cause hangs
 			assert.True(t, true, "Connectivity ticker handling completed successfully")
+			assert.Contains(t, buf.String(), "received connectivity tick", "Logs should indicate connectivity tick was received")
 		})
 	}
 }
 
 func TestNode_HouseKeeping_ClockSyncTicker(t *testing.T) {
-	node, mockComm := setupTestNodeForHousekeeping(t)
+	buf, restore := captureLogs()
+	defer restore()
+
+	node, _ := setupTestNodeForHousekeeping(t)
 	defer node.futureTicker.Stop()
 	defer node.connectivityTicker.Stop()
 	defer node.clockSyncTicker.Stop()
@@ -488,83 +465,5 @@ func TestNode_HouseKeeping_ClockSyncTicker(t *testing.T) {
 	// The test should complete without hanging, demonstrating that
 	// clock sync ticker events are being handled
 	assert.True(t, true, "Clock sync ticker handling completed successfully")
-	_ = mockComm // Use mockComm to avoid unused variable
-}
-
-func TestNode_HouseKeeping_ContextCancellation(t *testing.T) {
-	node, _ := setupTestNodeForHousekeeping(t)
-	defer node.futureTicker.Stop()
-	defer node.connectivityTicker.Stop()
-	defer node.clockSyncTicker.Stop()
-
-	// Create a context that will be cancelled
-	ctx, cancel := context.WithCancel(context.Background())
-
-	// Start housekeeping
-	done := make(chan bool)
-	go func() {
-		node.houseKeeping(ctx)
-		done <- true
-	}()
-
-	// Cancel context after a short delay
-	time.Sleep(10 * time.Millisecond)
-	cancel()
-
-	// Verify that housekeeping exits when context is cancelled
-	select {
-	case <-done:
-		assert.True(t, true, "Housekeeping exited properly on context cancellation")
-	case <-time.After(100 * time.Millisecond):
-		t.Fatal("Housekeeping did not exit within expected time after context cancellation")
-	}
-}
-
-func TestNode_HouseKeeping_AllTickerTypes(t *testing.T) {
-	node, mockComm := setupTestNodeForHousekeeping(t)
-	defer node.futureTicker.Stop()
-	defer node.connectivityTicker.Stop()
-	defer node.clockSyncTicker.Stop()
-
-	// Create very short tickers for all types
-	node.futureTicker = time.NewTicker(5 * time.Millisecond)
-	node.connectivityTicker = time.NewTicker(7 * time.Millisecond)
-	node.clockSyncTicker = time.NewTicker(11 * time.Millisecond)
-
-	// Track ticker events
-	var events []string
-	var mu sync.Mutex
-
-	// Override processBlock to track future ticker events
-	node.processBlockFunc = func(blk *block.Block, stats *blockStats) (bool, error) {
-		mu.Lock()
-		events = append(events, "future_block_processed")
-		mu.Unlock()
-		return false, nil
-	}
-
-	// Set no peers to potentially trigger connectivity logic
-	mockComm.peerCount = 0
-
-	// Start housekeeping
-	ctx, cancel := context.WithTimeout(context.Background(), 100*time.Millisecond)
-	defer cancel()
-
-	done := make(chan bool)
-	go func() {
-		defer func() { done <- true }()
-		node.houseKeeping(ctx)
-	}()
-
-	// Wait for completion
-	<-done
-
-	// Verify the test completed without hanging
-	assert.True(t, true, "All ticker types handled successfully")
-
-	// The events might be empty since we don't have actual future blocks cached,
-	// but the important thing is that the goroutine didn't hang
-	mu.Lock()
-	defer mu.Unlock()
-	t.Logf("Captured events: %v", events)
+	assert.Contains(t, buf.String(), "received clock sync tick>>", "Logs should indicate clock sync tick was received")
 }
