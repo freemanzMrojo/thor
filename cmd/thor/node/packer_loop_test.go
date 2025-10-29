@@ -125,7 +125,7 @@ func TestCleanupTransactions(t *testing.T) {
 	var txsToRemove []*tx.Transaction
 
 	assert.NotPanics(t, func() {
-		cleanupTransactions(txsToRemove, n.txPool)
+		cleanupTransactions(txsToRemove, n.txPool.(*txpool.TxPool))
 	})
 }
 
@@ -189,7 +189,7 @@ func TestCleanupTransactions_WithTransactions(t *testing.T) {
 
 	txsToRemove := transactions[:2]
 
-	cleanupTransactions(txsToRemove, n.txPool)
+	cleanupTransactions(txsToRemove, n.txPool.(*txpool.TxPool))
 
 	assert.Equal(t, 1, n.txPool.Len())
 
