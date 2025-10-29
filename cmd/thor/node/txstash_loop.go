@@ -7,27 +7,18 @@ package node
 
 import (
 	"context"
-
-	"github.com/syndtr/goleveldb/leveldb"
 )
 
 func (n *Node) txStashLoop(ctx context.Context) {
 	logger.Debug("enter tx stash loop")
 	defer logger.Debug("leave tx stash loop")
 
-	db, err := leveldb.OpenFile(n.txStashPath, nil)
-	if err != nil {
-		logger.Error("create tx stash", "err", err)
-		return
-	}
-	defer db.Close()
-
-	stash := newTxStash(db, 1000)
-
 	{
-		txs := stash.LoadAll()
-		n.txPool.Fill(txs)
-		logger.Debug("loaded txs from stash", "count", len(txs))
+		txs := n.txStash.LoadAll()
+		if len(txs) > 0 {
+			n.txPool.Fill(txs)
+			logger.Debug("loaded txs from stash", "count", len(txs))
+		}
 	}
 
 	for {
@@ -36,16 +27,17 @@ func (n *Node) txStashLoop(ctx context.Context) {
 			logger.Debug("received context done signal")
 			return
 		case txEv := <-n.txCh:
-			logger.Debug("received future block signal")
+			logger.Debug("received tx signal")
 			// skip executables
 			if txEv.Executable != nil && *txEv.Executable {
+				logger.Debug("received executable tx signal")
 				continue
 			}
 			// only stash non-executable txs
-			if err := stash.Save(txEv.Tx); err != nil {
-				logger.Warn("stash tx", "id", txEv.Tx.ID(), "err", err)
+			if err := n.txStash.Save(txEv.Tx); err != nil {
+				logger.Warn("stash tx", "id", txEv.Tx.ID().String(), "err", err)
 			} else {
-				logger.Trace("stashed tx", "id", txEv.Tx.ID())
+				logger.Trace("stashed tx", "id", txEv.Tx.ID().String())
 			}
 		}
 	}

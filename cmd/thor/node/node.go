@@ -16,6 +16,7 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/mclock"
 	"github.com/ethereum/go-ethereum/event"
+	"github.com/syndtr/goleveldb/leveldb"
 
 	"github.com/vechain/thor/v2/block"
 	"github.com/vechain/thor/v2/cache"
@@ -135,6 +136,7 @@ type Node struct {
 	connectivityTicker *time.Ticker
 	clockSyncTicker    *time.Ticker
 	futureBlocksCache  *cache.RandCache
+	txStash            *txStash
 }
 
 func New(
@@ -180,6 +182,15 @@ func (n *Node) Run(ctx context.Context) error {
 		return err
 	}
 	n.maxBlockNum = maxBlockNum
+
+	db, err := leveldb.OpenFile(n.txStashPath, nil)
+	if err != nil {
+		logger.Error("create tx stash", "err", err)
+		return err
+	}
+	defer db.Close()
+
+	n.txStash = newTxStash(db, 1000)
 
 	// Initialization channels
 	n.scope = event.SubscriptionScope{}
